@@ -15,7 +15,6 @@ import (
 )
 
 func getJoinToken(room, identity string) string {
-
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatalf("err loading: %v", err)
@@ -67,7 +66,6 @@ func getListRoom() *livekit.ListRoomsResponse {
 }
 
 func GetRoomHandler(w http.ResponseWriter, r *http.Request) {
-
 	rooms := getListRoom()
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "OK",
@@ -152,6 +150,7 @@ func muteParticipantInRoom(data *ReqMuteUnmute) error {
 	})
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 	return nil
 }
@@ -173,17 +172,24 @@ func MuteHandler(w http.ResponseWriter, r *http.Request) {
 		UserID:  userIdParam,
 		TrackID: trackIdParam,
 	}
-	muteParticipantInRoom(data)
+	err := muteParticipantInRoom(data)
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "ok",
-	})
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "err",
+			"message": err.Error(),
+		})
 
+	} else {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+		})
+	}
 }
 
-func unmuteParticipantInRoom(data *ReqMuteUnmute) (*livekit.MuteRoomTrackResponse, error) {
+func unmuteParticipantInRoom(data *ReqMuteUnmute) error {
 	roomClient := InitRoomClient()
-	res, err := roomClient.MutePublishedTrack(context.Background(), &livekit.MuteRoomTrackRequest{
+	_, err := roomClient.MutePublishedTrack(context.Background(), &livekit.MuteRoomTrackRequest{
 		Room:     data.RoomID,
 		Identity: data.UserID,
 		TrackSid: data.TrackID,
@@ -191,9 +197,9 @@ func unmuteParticipantInRoom(data *ReqMuteUnmute) (*livekit.MuteRoomTrackRespons
 	})
 	if err != nil {
 		log.Println(err)
-		return res, err
+		return err
 	}
-	return res, nil
+	return nil
 }
 
 func UnmuteHandler(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +219,7 @@ func UnmuteHandler(w http.ResponseWriter, r *http.Request) {
 		UserID:  userIdParam,
 		TrackID: trackIdParam,
 	}
-	res, err := unmuteParticipantInRoom(data)
+	err := unmuteParticipantInRoom(data)
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":  "err",
@@ -222,8 +228,7 @@ func UnmuteHandler(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":  "ok",
-			"message": res,
+			"status": "ok",
 		})
 	}
 }
