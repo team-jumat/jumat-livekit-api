@@ -19,7 +19,7 @@ import (
 
 	"github.com/go-logr/stdr"
 
-	protoLogger "github.com/livekit/protocol/logger"
+	protoLogger "jumat/protocol/logger"
 )
 
 var logger protoLogger.Logger = protoLogger.LogRLogger(stdr.New(log.Default()))

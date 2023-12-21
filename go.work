@@ -2,7 +2,6 @@ go 1.20
 
 use (
 	./livekit-api
+	./protocol
 	./server-sdk-go
-// ./protocol
-// ./server-sdk-go
 )

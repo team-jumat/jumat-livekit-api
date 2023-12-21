@@ -19,7 +19,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/livekit/protocol/livekit"
+	"jumat/protocol/livekit"
 )
 
 type Participant interface {

@@ -30,7 +30,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/livekit/protocol/livekit"
+	"jumat/protocol/livekit"
 )
 
 const PROTOCOL = 8

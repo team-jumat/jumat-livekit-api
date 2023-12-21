@@ -21,7 +21,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/thoas/go-funk"
 
-	"github.com/livekit/protocol/livekit"
+	"jumat/protocol/livekit"
 )
 
 func ToProtoSessionDescription(sd webrtc.SessionDescription) *livekit.SessionDescription {

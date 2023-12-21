@@ -18,8 +18,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/livekit/protocol/auth"
-	"github.com/livekit/protocol/livekit"
+	"jumat/protocol/auth"
+	"jumat/protocol/livekit"
 )
 
 type EgressClient struct {

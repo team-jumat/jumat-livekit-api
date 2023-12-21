@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"jumat/protocol/auth"
+	"jumat/protocol/livekit"
+
 	"github.com/joho/godotenv"
-	"github.com/livekit/protocol/auth"
-	"github.com/livekit/protocol/livekit"
 )
 
 func getJoinToken(room, identity string) string {

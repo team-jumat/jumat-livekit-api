@@ -32,7 +32,7 @@ import (
 
 	"jumat/server-sdk-go/pkg/interceptor"
 
-	"github.com/livekit/protocol/livekit"
+	"jumat/protocol/livekit"
 )
 
 // The integration test of the SDK. can't run this test standalone, should be run with `mage test`

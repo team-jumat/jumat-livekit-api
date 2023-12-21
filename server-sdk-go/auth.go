@@ -18,7 +18,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/livekit/protocol/auth"
+	"jumat/protocol/auth"
+
 	"github.com/twitchtv/twirp"
 )
 

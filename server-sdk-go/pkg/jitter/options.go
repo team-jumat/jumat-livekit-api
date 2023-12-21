@@ -14,7 +14,7 @@
 
 package jitter
 
-import "github.com/livekit/protocol/logger"
+import "jumat/protocol/logger"
 
 type Option func(b *Buffer)
 

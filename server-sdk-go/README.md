@@ -25,7 +25,7 @@ import (
 	"time"
 
 	lksdk "jumat/server-sdk-go"
-	"github.com/livekit/protocol/auth"
+	"jumat/protocol/auth"
 )
 
 func getJoinToken(apiKey, apiSecret, room, identity string) (string, error) {
@@ -49,7 +49,7 @@ RoomService gives you complete control over rooms and participants within them. 
 ```go
 import (
 	lksdk "jumat/server-sdk-go"
-	livekit "github.com/livekit/protocol/livekit"
+	livekit "jumat/protocol/livekit"
 )
 
 func main() {
@@ -246,9 +246,9 @@ See [webhooks guide](https://docs.livekit.io/guides/webhooks) for configuration.
 
 ```go
 import (
-	"github.com/livekit/protocol/auth"
-	"github.com/livekit/protocol/livekit"
-	"github.com/livekit/protocol/webhook"
+	"jumat/protocol/auth"
+	"jumat/protocol/livekit"
+	"jumat/protocol/webhook"
 )
 
 var authProvider = auth.NewSimpleKeyProvider(
