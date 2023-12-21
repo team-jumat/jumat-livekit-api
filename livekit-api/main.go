@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"os"
 
+	lksdk "jumat/server-sdk-go"
+
 	"github.com/joho/godotenv"
-	lksdk "github.com/livekit/server-sdk-go"
 )
 
 func main() {
