@@ -105,7 +105,7 @@ func CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func getParticipantByRoomId(room_id string) *livekit.ListParticipantsResponse {
+func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
 	roomClient := InitRoomClient()
 	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
 		Room: room_id,
@@ -113,11 +113,21 @@ func getParticipantByRoomId(room_id string) *livekit.ListParticipantsResponse {
 	if err != nil {
 		log.Println(err)
 	}
-	return res
-
+	data := res.GetDataParticipants()
+	total := res.CountParticipants()
+	return data, total
 }
 
 func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
+	// Set header untuk SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Kirim data SSE setiap 1 detik
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
 	roomIdParam := r.URL.Query().Get("room_id")
 	if roomIdParam == "" {
 		w.WriteHeader(http.StatusOK)
@@ -127,10 +137,39 @@ func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	paticipant := getParticipantByRoomId(roomIdParam)
+
+	for {
+		select {
+		case <-r.Context().Done():
+			// Jika koneksi ditutup, keluar dari loop
+			return
+		case <-ticker.C:
+			// Kirim data SSE
+			paticipant, total := getParticipantByRoomId(roomIdParam)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data":  paticipant,
+				"total": total,
+			})
+			w.(http.Flusher).Flush()
+		}
+	}
+}
+
+func GetParticipantHandler2(w http.ResponseWriter, r *http.Request) {
+	roomIdParam := r.URL.Query().Get("room_id")
+	if roomIdParam == "" {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ERROR",
+			"message": "room_id or identity_id cannot null",
+		})
+		return
+	}
+	paticipant, total := getParticipantByRoomId(roomIdParam)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "OK",
 		"data":   paticipant,
+		"total":  total,
 	})
 }
 
