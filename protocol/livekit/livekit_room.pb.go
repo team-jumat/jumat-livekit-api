@@ -21,10 +21,14 @@
 package livekit
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	"jumat/database"
+	"strconv"
+	"log"
 	reflect "reflect"
 	sync "sync"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -461,22 +465,37 @@ func (x *ListParticipantsResponse) CountParticipants() int {
 type ParticipantData struct {
 	IdentityID string
 	Tracks     []string
+	NamaUser   string
+	IsMutawif  int64
+	IsTl       int64
 }
 
-func (x *ListParticipantsResponse) GetDataParticipants() []ParticipantData {
+func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, error) {
 	var participantsData []ParticipantData
 	for _, participant := range x.Participants {
 		var sids []string
 		for _, track := range participant.Tracks {
 			sids = append(sids, track.Sid)
 		}
+		i, err := strconv.ParseInt(participant.Identity, 10, 64)
+		if err != nil {
+			log.Println(err)
+		}
+		var user *database.UsersResponse
+		user, err = database.GetUserById(i)
+		if err != nil {
+			log.Println(err)
+		}
 		data := ParticipantData{
 			IdentityID: participant.Identity,
 			Tracks:     sids,
+			NamaUser: user.NamaUser,
+			IsMutawif: user.IsMutawif,
+			IsTl: user.IsTl,
 		}
 		participantsData = append(participantsData, data)
 	}
-	return participantsData
+	return participantsData, nil
 }
 
 func (x *ListParticipantsResponse) Reset() {

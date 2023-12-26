@@ -114,7 +114,10 @@ func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
 	if err != nil {
 		log.Println(err)
 	}
-	data := res.GetDataParticipants()
+	data, err := res.GetDataParticipants()
+	if err != nil {
+		log.Println(err)
+	}
 	total := res.CountParticipants()
 	return data, total
 }
