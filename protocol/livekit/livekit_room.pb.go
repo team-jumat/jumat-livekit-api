@@ -22,8 +22,10 @@ package livekit
 
 import (
 	"jumat/database"
+	"errors"
 	"strconv"
 	"log"
+	"gorm.io/gorm"
 	reflect "reflect"
 	sync "sync"
 
@@ -484,7 +486,10 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 		var user *database.UsersResponse
 		user, err = database.GetUserById(i)
 		if err != nil {
-			log.Println(err)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return participantsData, err
+			}
+			return participantsData, err
 		}
 		data := ParticipantData{
 			IdentityID: participant.Identity,
