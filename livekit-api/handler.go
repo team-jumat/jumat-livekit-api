@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"jumat/protocol/auth"
+	"jumat/protocol/livekit"
+	lksdk "jumat/server-sdk-go"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
-
-	"jumat/protocol/auth"
-	"jumat/protocol/livekit"
 
 	"github.com/joho/godotenv"
 	"golang.org/x/net/websocket"
@@ -43,6 +43,79 @@ func getJoinToken(room, identity string) string {
 		SetValidFor(24 * time.Hour)
 	token, _ := at.ToJWT()
 	return token
+}
+
+func sendData() error {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("err loading: %v", err)
+	}
+
+	apiKey := os.Getenv("LK_API_KEY")
+	if apiKey == "" {
+		log.Println("LK_API_KEY MISSING")
+	}
+
+	apiSecret := os.Getenv("LK_API_SECRET")
+	if apiSecret == "" {
+		log.Println("LK_API_SECRET MISSING")
+	}
+	wsIP := os.Getenv("WEBSOCKET_IP")
+	if wsIP == "" {
+		log.Println("WEBSOCKET_IP MISSING")
+	}
+	wsPort := os.Getenv("WEBSOCKET_PORT")
+	if wsPort == "" {
+		log.Println("WEBSOCKET_PORT MISSING")
+	}
+	host := "ws://" + wsIP + ":" + wsPort
+	info := lksdk.ConnectInfo{
+		APIKey:              apiKey,
+		APISecret:           apiSecret,
+		RoomName:            "1",
+		ParticipantIdentity: "1",
+	}
+	room, err := lksdk.ConnectToRoom(
+		host,
+		info,
+		&lksdk.RoomCallback{
+			OnParticipantConnected: func(*lksdk.RemoteParticipant) {
+			},
+		},
+	)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return err
+	}
+	data := map[string]string{
+		"message": "Raise Hand",
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return err
+	}
+
+	// publish lossy data to the entire room
+	room.LocalParticipant.PublishData(jsonData, 0, nil)
+
+	// publish reliable data to a set of participants
+	room.LocalParticipant.PublishData(jsonData, 1, nil)
+	return nil
+}
+
+func SendData(w http.ResponseWriter, r *http.Request) {
+	err := sendData()
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "Fail",
+			"err":    err,
+		})
+	} else {
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "OK",
+		})
+	}
 }
 
 func GetTokenHandler(w http.ResponseWriter, r *http.Request) {

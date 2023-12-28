@@ -20,6 +20,7 @@ func main() {
 	http.HandleFunc("/participants", GetParticipantHandler2)
 	http.HandleFunc("/mute", MuteHandler)
 	http.HandleFunc("/unmute", UnmuteHandler)
+	http.HandleFunc("/send", SendData)
 	http.Handle("/ws/participant", websocket.Handler(WebSocketHandler))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
