@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"jumat/protocol/livekit"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/net/websocket"
 )
 
 func getJoinToken(room, identity string) string {
@@ -119,16 +122,109 @@ func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
 		log.Println(err)
 	}
 	total := res.CountParticipants()
+	if data == nil {
+		// Set data to an empty slice
+		data = []livekit.ParticipantData{}
+	}
 	return data, total
 }
 
+type Client struct {
+	conn    *websocket.Conn
+	roomID  string
+	closeCh chan struct{}
+}
+
+func WebSocketHandler(ws *websocket.Conn) {
+
+	roomIdParam := ws.Request().URL.Query().Get("room_id")
+	if roomIdParam == "" {
+		log.Println("room_id cannot be null")
+		ws.Close()
+		return
+	}
+	client := &Client{
+		conn:    ws,
+		roomID:  roomIdParam,
+		closeCh: make(chan struct{}),
+	}
+
+	go client.handleWebSocket()
+
+	for {
+		// Get participants and total count
+		participants, total := getParticipantByRoomId(roomIdParam)
+
+		// Encode data as JSON
+		data := map[string]interface{}{
+			"data":  participants,
+			"total": total,
+		}
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			log.Println("Error encoding JSON:", err)
+			return
+		}
+
+		// Send JSON data over WebSocket
+		if _, err := ws.Write(jsonData); err != nil {
+			log.Println("Error writing to WebSocket:", err)
+			return
+		}
+		time.Sleep(3 * time.Second)
+	}
+}
+
+func (c *Client) handleWebSocket() {
+	defer close(c.closeCh)
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.closeCh:
+			// The client disconnected, exit the loop
+			return
+		case <-ticker.C:
+			// Your WebSocket update logic here
+			participants, total := getParticipantByRoomId(c.roomID)
+
+			// Encode data as JSON
+			data := map[string]interface{}{
+				"data":  participants,
+				"total": total,
+			}
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				log.Println("Error encoding JSON:", err)
+				return
+			}
+
+			// Send JSON data over WebSocket
+			if err := websocket.Message.Send(c.conn, string(jsonData)); err != nil {
+				log.Println("Error writing to WebSocket:", err)
+				return
+			}
+		}
+	}
+}
+
+func writeEvent(w io.Writer, e []byte) error {
+	if _, err := fmt.Fprintf(
+		w, "event: LIST_PARTICIPANT\ndata: %s", e,
+	); err != nil {
+		return err
+	}
+	_, err := w.Write([]byte("\n\n"))
+	return err
+}
+
 func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
-	// Set header untuk SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// Kirim data SSE setiap 1 detik
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
@@ -141,20 +237,30 @@ func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
 	for {
 		select {
 		case <-r.Context().Done():
-			// Jika koneksi ditutup, keluar dari loop
 			return
 		case <-ticker.C:
-			// Kirim data SSE
-			paticipant, total := getParticipantByRoomId(roomIdParam)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"data":  paticipant,
+			participant, total := getParticipantByRoomId(roomIdParam)
+			data := map[string]interface{}{
+				"data":  participant,
 				"total": total,
-			})
-			w.(http.Flusher).Flush()
+			}
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := writeEvent(w, jsonData); err != nil {
+				return
+			}
+			flusher.Flush()
 		}
 	}
 }

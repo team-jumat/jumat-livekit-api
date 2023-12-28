@@ -8,6 +8,7 @@ import (
 	lksdk "jumat/server-sdk-go"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/net/websocket"
 )
 
 func main() {
@@ -15,9 +16,11 @@ func main() {
 	http.HandleFunc("/token", GetTokenHandler)
 	http.HandleFunc("/rooms", GetRoomHandler)
 	http.HandleFunc("/room", CreateRoomHandler)
-	http.HandleFunc("/participants", GetParticipantHandler)
+	http.HandleFunc("/sse/participants", GetParticipantHandler)
+	http.HandleFunc("/participants", GetParticipantHandler2)
 	http.HandleFunc("/mute", MuteHandler)
 	http.HandleFunc("/unmute", UnmuteHandler)
+	http.Handle("/ws/participant", websocket.Handler(WebSocketHandler))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
