@@ -45,7 +45,7 @@ func getJoinToken(room, identity string) string {
 	return token
 }
 
-func sendData() error {
+func raiseHand() error {
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatalf("err loading: %v", err)
@@ -104,8 +104,8 @@ func sendData() error {
 	return nil
 }
 
-func SendData(w http.ResponseWriter, r *http.Request) {
-	err := sendData()
+func RaiseHand(w http.ResponseWriter, r *http.Request) {
+	err := raiseHand()
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "Fail",
