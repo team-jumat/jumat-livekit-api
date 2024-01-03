@@ -107,6 +107,7 @@ func raiseHand(roomId, identityId string) error {
 	}
 	data := map[string]string{
 		"message": "Raise Hand",
+		"user_id": identityId,
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
