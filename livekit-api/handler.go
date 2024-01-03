@@ -45,7 +45,25 @@ func getJoinToken(room, identity string) string {
 	return token
 }
 
-func raiseHand() error {
+func GetTokenHandler(w http.ResponseWriter, r *http.Request) {
+	roomIdParam := r.URL.Query().Get("room_id")
+	identityParam := r.URL.Query().Get("identity_id")
+	if roomIdParam == "" || identityParam == "" {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ERROR",
+			"message": "room_id or identity_id cannot null",
+		})
+		return
+	}
+	token := getJoinToken(roomIdParam, identityParam)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "OK",
+		"token":  token,
+	})
+}
+
+func raiseHand(roomId, identityId string) error {
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatalf("err loading: %v", err)
@@ -72,8 +90,8 @@ func raiseHand() error {
 	info := lksdk.ConnectInfo{
 		APIKey:              apiKey,
 		APISecret:           apiSecret,
-		RoomName:            "1",
-		ParticipantIdentity: "1",
+		RoomName:            roomId,
+		ParticipantIdentity: identityId,
 	}
 	room, err := lksdk.ConnectToRoom(
 		host,
@@ -105,20 +123,6 @@ func raiseHand() error {
 }
 
 func RaiseHand(w http.ResponseWriter, r *http.Request) {
-	err := raiseHand()
-	if err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status": "Fail",
-			"err":    err,
-		})
-	} else {
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "OK",
-		})
-	}
-}
-
-func GetTokenHandler(w http.ResponseWriter, r *http.Request) {
 	roomIdParam := r.URL.Query().Get("room_id")
 	identityParam := r.URL.Query().Get("identity_id")
 	if roomIdParam == "" || identityParam == "" {
@@ -129,11 +133,17 @@ func GetTokenHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	token := getJoinToken(roomIdParam, identityParam)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "OK",
-		"token":  token,
-	})
+	err := raiseHand(roomIdParam, identityParam)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "Fail",
+			"err":    err,
+		})
+	} else {
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "OK",
+		})
+	}
 }
 
 func getListRoom() *livekit.ListRoomsResponse {
@@ -453,4 +463,17 @@ func UnmuteHandler(w http.ResponseWriter, r *http.Request) {
 			"status": "ok",
 		})
 	}
+}
+
+func RemoveParticipantInRoom(data *ReqMuteUnmute) error {
+	roomClient := InitRoomClient()
+	_, err := roomClient.RemoveParticipant(context.Background(), &livekit.RoomParticipantIdentity{
+		Room:     "1",
+		Identity: "1",
+	})
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	return nil
 }
