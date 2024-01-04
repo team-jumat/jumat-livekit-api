@@ -467,6 +467,7 @@ func (x *ListParticipantsResponse) CountParticipants() int {
 type ParticipantData struct {
 	IdentityID string
 	Tracks     []string
+	Mute       bool
 	NamaUser   string
 	IsMutawif  int64
 	IsTl       int64
@@ -476,8 +477,10 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 	var participantsData []ParticipantData
 	for _, participant := range x.Participants {
 		var sids []string
+		var mute bool
 		for _, track := range participant.Tracks {
 			sids = append(sids, track.Sid)
+			mute = track.Muted
 		}
 		i, err := strconv.ParseInt(participant.Identity, 10, 64)
 		if err != nil {
@@ -485,20 +488,28 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 		}
 		var user *database.UsersResponse
 		user, err = database.GetUserById(i)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return participantsData, err
+		if err == nil{
+			data := ParticipantData{
+				IdentityID: participant.Identity,
+				Tracks: sids,
+				Mute: mute,
+				NamaUser: user.NamaUser,
+				IsMutawif: user.IsMutawif,
+				IsTl: user.IsTl,
 			}
-			return participantsData, err
+			participantsData = append(participantsData, data)
+		} else {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				data := ParticipantData{
+					IdentityID: participant.Identity,
+					Tracks:     sids,
+					NamaUser: "unknown user",
+					IsMutawif: 0,
+					IsTl: 0,
+				}
+				participantsData = append(participantsData, data)
+			}
 		}
-		data := ParticipantData{
-			IdentityID: participant.Identity,
-			Tracks:     sids,
-			NamaUser: user.NamaUser,
-			IsMutawif: user.IsMutawif,
-			IsTl: user.IsTl,
-		}
-		participantsData = append(participantsData, data)
 	}
 	return participantsData, nil
 }
