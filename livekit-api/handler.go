@@ -63,7 +63,14 @@ func GetTokenHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func raiseHand(roomId, identityId string) error {
+type RequestRaiseHand struct {
+	RoomID   string   `json:"room_id"`
+	Sender   string   `json:"sender_id"`
+	Receiver []string `json:"receiver_id"`
+	Msg      string   `json:"msg"`
+}
+
+func raiseHand(req RequestRaiseHand) error {
 	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatalf("err loading: %v", err)
@@ -90,8 +97,8 @@ func raiseHand(roomId, identityId string) error {
 	info := lksdk.ConnectInfo{
 		APIKey:              apiKey,
 		APISecret:           apiSecret,
-		RoomName:            roomId,
-		ParticipantIdentity: identityId,
+		RoomName:            req.RoomID,
+		ParticipantIdentity: req.Sender,
 	}
 	room, err := lksdk.ConnectToRoom(
 		host,
@@ -106,8 +113,8 @@ func raiseHand(roomId, identityId string) error {
 		return err
 	}
 	data := map[string]string{
-		"message": "Raise Hand",
-		"user_id": identityId,
+		"message":   req.Msg,
+		"sender_id": req.Sender,
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -116,25 +123,25 @@ func raiseHand(roomId, identityId string) error {
 	}
 
 	// publish lossy data to the entire room
-	room.LocalParticipant.PublishData(jsonData, 0, nil)
+	// room.LocalParticipant.PublishData(jsonData, 0, nil)
 
 	// publish reliable data to a set of participants
-	room.LocalParticipant.PublishData(jsonData, 1, nil)
+	room.LocalParticipant.PublishData(jsonData, 0, req.Receiver)
 	return nil
 }
 
 func RaiseHand(w http.ResponseWriter, r *http.Request) {
-	roomIdParam := r.URL.Query().Get("room_id")
-	identityParam := r.URL.Query().Get("identity_id")
-	if roomIdParam == "" || identityParam == "" {
-		w.WriteHeader(http.StatusOK)
+	var requestData RequestRaiseHand
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":  "ERROR",
-			"message": "room_id or identity_id cannot null",
+			"message": "Invalid request body",
 		})
 		return
 	}
-	err := raiseHand(roomIdParam, identityParam)
+	err = raiseHand(requestData)
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "Fail",
