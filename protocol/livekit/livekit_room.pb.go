@@ -466,6 +466,7 @@ func (x *ListParticipantsResponse) CountParticipants() int {
 
 type ParticipantData struct {
 	IdentityID string
+	SID 	   string
 	Tracks     []string
 	Mute       bool
 	NamaUser   string
@@ -475,11 +476,13 @@ type ParticipantData struct {
 
 func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, error) {
 	var participantsData []ParticipantData
+	var sid string 
 	for _, participant := range x.Participants {
-		var sids []string
+		var trackIds []string
 		var mute bool
+		sid = participant.Sid
 		for _, track := range participant.Tracks {
-			sids = append(sids, track.Sid)
+			trackIds = append(trackIds, track.Sid)
 			mute = track.Muted
 		}
 		i, err := strconv.ParseInt(participant.Identity, 10, 64)
@@ -491,8 +494,9 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 		if err == nil{
 			data := ParticipantData{
 				IdentityID: participant.Identity,
-				Tracks: sids,
+				Tracks: trackIds,
 				Mute: mute,
+				SID: sid,
 				NamaUser: user.NamaUser,
 				IsMutawif: user.IsMutawif,
 				IsTl: user.IsTl,
@@ -502,7 +506,8 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				data := ParticipantData{
 					IdentityID: participant.Identity,
-					Tracks:     sids,
+					Tracks: trackIds,
+					SID: sid,
 					NamaUser: "unknown user",
 					IsMutawif: 0,
 					IsTl: 0,
