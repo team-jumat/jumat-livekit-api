@@ -17,6 +17,7 @@ func main() {
 	http.HandleFunc("/rooms", GetRoomHandler)
 	http.HandleFunc("/room", CreateRoomHandler)
 	http.HandleFunc("/sse/participants", GetParticipantHandler)
+	http.HandleFunc("/sse/room-status", GetRoomStatus)
 	http.HandleFunc("/participants", GetParticipantHandler2)
 	http.HandleFunc("/mute", MuteHandler)
 	http.HandleFunc("/unmute", UnmuteHandler)

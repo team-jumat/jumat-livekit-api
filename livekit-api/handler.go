@@ -220,6 +220,22 @@ func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
 	return data, total
 }
 
+func getRoomStatus(room_id string) bool {
+	roomClient := InitRoomClient()
+	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+		Room: room_id,
+	})
+	if err != nil {
+		log.Println(err)
+	}
+	total := res.CountParticipants()
+	if total != 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
 type Client struct {
 	conn    *websocket.Conn
 	roomID  string
@@ -342,6 +358,50 @@ func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
 			data := map[string]interface{}{
 				"data":  participant,
 				"total": total,
+			}
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := writeEvent(w, jsonData); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
+func GetRoomStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	roomIdParam := r.URL.Query().Get("room_id")
+	if roomIdParam == "" {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ERROR",
+			"message": "room_id cannot null",
+		})
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			status := getRoomStatus(roomIdParam)
+			data := map[string]interface{}{
+				"active": status,
 			}
 			jsonData, err := json.Marshal(data)
 			if err != nil {
