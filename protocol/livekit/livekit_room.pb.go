@@ -470,6 +470,7 @@ type ParticipantData struct {
 	Tracks     []string
 	Mute       bool
 	NamaUser   string
+	Color 	   string
 	IsMutawif  int64
 	IsTl       int64
 }
@@ -498,6 +499,7 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 				Mute: mute,
 				SID: sid,
 				NamaUser: user.NamaUser,
+				Color: "#78ce31",
 				IsMutawif: user.IsMutawif,
 				IsTl: user.IsTl,
 			}
@@ -509,6 +511,7 @@ func (x *ListParticipantsResponse) GetDataParticipants() ([]ParticipantData, err
 					Tracks: trackIds,
 					SID: sid,
 					NamaUser: "unknown user",
+					Color: "#2c3e50",
 					IsMutawif: 0,
 					IsTl: 0,
 				}
