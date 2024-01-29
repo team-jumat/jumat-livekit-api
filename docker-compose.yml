@@ -1,0 +1,12 @@
+version: "3"
+services:
+  web:
+    restart: always
+    image: livekit-api:v1.0
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+    ports:
+      - '8080:8080'
+    tty: true
+    container_name: livekit-api
