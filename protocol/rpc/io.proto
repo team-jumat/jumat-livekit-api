@@ -1,0 +1,127 @@
+// Copyright 2023 LiveKit, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package rpc;
+
+option go_package = "github.com/livekit/livekit/pkg/service/rpc";
+
+import "livekit_egress.proto";
+import "livekit_ingress.proto";
+import "google/protobuf/empty.proto";
+
+service IOInfo {
+  // egress
+  rpc CreateEgress(livekit.EgressInfo) returns (google.protobuf.Empty);
+  rpc UpdateEgress(livekit.EgressInfo) returns (google.protobuf.Empty);
+  rpc GetEgress(GetEgressRequest) returns (livekit.EgressInfo);
+  rpc ListEgress(livekit.ListEgressRequest) returns (livekit.ListEgressResponse);
+  rpc UpdateMetrics(UpdateMetricsRequest) returns (google.protobuf.Empty);
+
+  // ingress
+  rpc GetIngressInfo(GetIngressInfoRequest) returns (GetIngressInfoResponse);
+  rpc UpdateIngressState(UpdateIngressStateRequest) returns (google.protobuf.Empty);
+
+  // sip
+  rpc GetSIPTrunkAuthentication(GetSIPTrunkAuthenticationRequest) returns (GetSIPTrunkAuthenticationResponse);
+  rpc EvaluateSIPDispatchRules(EvaluateSIPDispatchRulesRequest) returns (EvaluateSIPDispatchRulesResponse);
+}
+
+message GetEgressRequest {
+  string egress_id = 1;
+}
+
+message UpdateMetricsRequest {
+  livekit.EgressInfo info = 1;
+  float avg_cpu_usage = 3;
+  float max_cpu_usage = 4;
+}
+
+// Query an ingress info from an ingress ID or stream key
+message GetIngressInfoRequest {
+  string ingress_id = 1;
+  string stream_key = 2;
+}
+
+message GetIngressInfoResponse {
+  livekit.IngressInfo info = 1;
+  string token = 2;
+  string ws_url = 3;
+}
+
+// Request to store an update to the ingress state ingress -> service
+message UpdateIngressStateRequest {
+  string ingress_id = 1;
+  livekit.IngressState state = 2;
+}
+
+message GetSIPTrunkAuthenticationRequest {
+  // What Number is calling
+  string from = 2;
+
+  // What Number was called
+  string to = 3;
+
+  // What is the IP address of the called number
+  string src_address = 4;
+
+  // What Host was called
+  string to_host = 5;
+}
+
+message GetSIPTrunkAuthenticationResponse {
+  // Expected username and password
+  string username = 1;
+  string password = 2;
+}
+
+message EvaluateSIPDispatchRulesRequest {
+  string sip_participant_id = 1;
+
+  // What Number is calling
+  string calling_number = 2;
+
+  // What Number was called
+  string called_number = 3;
+
+  // What is the IP address of the called number
+  string src_address = 4;
+
+  // What pin has been entered if any
+  string pin = 5;
+
+  // Caller rejected pin prompt, only try public rooms
+  bool no_pin = 6;
+
+  // What Host was called
+  string called_host = 7;
+}
+
+message EvaluateSIPDispatchRulesResponse {
+  // non-empty string if SIPParticipant should be placed a room
+  string room_name = 1;
+
+  // What should be used for the LiveKit identity
+  string participant_identity = 2;
+
+  // Pin should be requested from SIPParticipant
+  bool request_pin = 3;
+
+  // optional token that should be used when creating LiveKit participant
+  string token = 4;
+
+  // optional websocket url that should be used when creating LiveKit participant
+  string ws_url = 5;
+}
