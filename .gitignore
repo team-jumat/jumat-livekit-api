@@ -4,3 +4,4 @@
 *.dll
 *.so
 *.dylib
+/log-data
