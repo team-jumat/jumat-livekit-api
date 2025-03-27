@@ -4,4 +4,6 @@
 *.dll
 *.so
 *.dylib
+/log-data
 .DS_Store
+

@@ -16,6 +16,8 @@ COPY . /livekit-api
 # download Go modules and dependencies
 RUN go mod download
 
+RUN ls
+
 # compile application
 RUN go build -o /app
 
@@ -31,7 +33,11 @@ COPY --from=build /livekit-api/database/.env /database/.env
 
 COPY --from=build /livekit-api/livekit-api/.env /.env
 
+COPY --from=build /livekit-api/log /log
+
 COPY --from=build /app /app
+
+CMD ls
 
 # tells Docker that the container listens on specified network ports at runtime
 EXPOSE 8080

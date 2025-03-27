@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,13 +11,96 @@ import (
 	lksdk "jumat/server-sdk-go"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
 	"golang.org/x/net/websocket"
 )
+
+func logRequest(r *http.Request, responseData []byte) {
+
+	logDir := filepath.Join("..", "log")
+
+	// Ensure log directory exists
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		err := os.MkdirAll(logDir, os.ModePerm)
+		if err != nil {
+			log.Println("Error creating log directory:", err)
+			return
+		}
+	}
+
+	logFilePath := filepath.Join(logDir, "livekit.log")
+	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Println("Error opening log file:", err)
+		return
+	}
+	defer file.Close()
+
+	endpointDescriptions := map[string]string{
+		"/token":            "Token",
+		"/rooms":            "Room List",
+		"/room":             "Create Room",
+		"/sse/participants": "SSE Participant In Room",
+		"/sse/room-status":  "Room Status",
+		"participants":      "SSE Participant In Room [2]",
+		"/mute":             "Mute",
+		"/unmute":           "Unmute",
+		"/raise-hand":       "Raise Hand",
+		"/ws/participant":   "Participant Web Socket",
+	}
+
+	description, exists := endpointDescriptions[r.URL.Path]
+	if !exists {
+		description = "Unknown Endpoint"
+	}
+
+	logger := log.New(file, "", log.LstdFlags)
+
+	logEntry := fmt.Sprintf("%s %s \"%s\"", r.Method, r.URL.Path, description)
+
+	params := ""
+	for key, values := range r.URL.Query() {
+		for _, value := range values {
+			if params != "" {
+				params += ", " // Add a separator if there are multiple params
+			}
+			params += fmt.Sprintf("%s:%s", key, value)
+		}
+	}
+
+	if params != "" {
+		logEntry += fmt.Sprintf(" Params: %s", params)
+	}
+
+	// If it's a GET request, include the response
+	if r.Method == http.MethodGet {
+		logEntry += fmt.Sprintf(" Response: %s", string(responseData))
+	}
+
+	logger.Println(logEntry)
+}
+
+func LogWebSocketRequest(r *http.Request) {
+	file, err := os.OpenFile("livekit.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		log.Println("Error opening log file:", err)
+		return
+	}
+	defer file.Close()
+
+	logger := log.New(file, "", log.LstdFlags)
+
+	roomID := r.URL.Query().Get("room_id")
+
+	// Log request details
+	logger.Printf("WebSocket connection: %s %s?room_id=%s", r.Method, r.URL.Path, roomID)
+}
 
 func getJoinToken(room, identity string) string {
 	err := godotenv.Load(".env")
@@ -46,6 +130,9 @@ func getJoinToken(room, identity string) string {
 }
 
 func GetTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var responseBuffer bytes.Buffer
+	responseWriter := io.MultiWriter(w, &responseBuffer)
+
 	roomIdParam := r.URL.Query().Get("room_id")
 	identityParam := r.URL.Query().Get("identity_id")
 	if roomIdParam == "" || identityParam == "" {
@@ -57,10 +144,15 @@ func GetTokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := getJoinToken(roomIdParam, identityParam)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response := map[string]interface{}{
 		"status": "OK",
 		"token":  token,
-	})
+	}
+
+	json.NewEncoder(responseWriter).Encode(response)
+
+	// Log request with response
+	logRequest(r, responseBuffer.Bytes())
 }
 
 type RequestRaiseHand struct {
@@ -131,6 +223,9 @@ func raiseHand(req RequestRaiseHand) error {
 }
 
 func RaiseHand(w http.ResponseWriter, r *http.Request) {
+
+	logRequest(r, nil)
+
 	var requestData RequestRaiseHand
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
@@ -161,11 +256,17 @@ func getListRoom() *livekit.ListRoomsResponse {
 }
 
 func GetRoomHandler(w http.ResponseWriter, r *http.Request) {
+	recorder := httptest.NewRecorder()
 	rooms := getListRoom()
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	responseData, _ := json.Marshal(map[string]interface{}{
 		"status": "OK",
 		"data":   rooms,
 	})
+	recorder.Write(responseData)
+
+	logRequest(r, responseData)
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseData)
 }
 
 type ReqRoom struct {
@@ -188,6 +289,9 @@ func createRoom(data *ReqRoom) *livekit.Room {
 }
 
 func CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
+
+	logRequest(r, nil)
+
 	data := &ReqRoom{
 		RoomID:          r.FormValue("room_id"),
 		TimeOut:         r.FormValue("time_out"),
@@ -243,6 +347,8 @@ type Client struct {
 }
 
 func WebSocketHandler(ws *websocket.Conn) {
+
+	LogWebSocketRequest(ws.Request())
 
 	roomIdParam := ws.Request().URL.Query().Get("room_id")
 	if roomIdParam == "" {
@@ -328,6 +434,7 @@ func writeEvent(w io.Writer, e []byte) error {
 }
 
 func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -368,11 +475,14 @@ func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flusher.Flush()
+
+			logRequest(r, jsonData)
 		}
 	}
 }
 
 func GetRoomStatus(w http.ResponseWriter, r *http.Request) {
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -412,11 +522,16 @@ func GetRoomStatus(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			flusher.Flush()
+
+			logRequest(r, jsonData)
 		}
 	}
 }
 
 func GetParticipantHandler2(w http.ResponseWriter, r *http.Request) {
+
+	logRequest(r, nil)
+
 	roomIdParam := r.URL.Query().Get("room_id")
 	if roomIdParam == "" {
 		w.WriteHeader(http.StatusOK)
@@ -456,6 +571,9 @@ func muteParticipantInRoom(data *ReqMuteUnmute) error {
 }
 
 func MuteHandler(w http.ResponseWriter, r *http.Request) {
+
+	logRequest(r, nil)
+
 	roomIdParam := r.URL.Query().Get("room_id")
 	userIdParam := r.URL.Query().Get("user_id")
 	trackIdParam := r.URL.Query().Get("track_id")
@@ -503,6 +621,9 @@ func unmuteParticipantInRoom(data *ReqMuteUnmute) error {
 }
 
 func UnmuteHandler(w http.ResponseWriter, r *http.Request) {
+
+	logRequest(r, nil)
+
 	roomIdParam := r.URL.Query().Get("room_id")
 	userIdParam := r.URL.Query().Get("user_id")
 	trackIdParam := r.URL.Query().Get("track_id")
