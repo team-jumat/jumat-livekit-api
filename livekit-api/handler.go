@@ -666,3 +666,78 @@ func RemoveParticipantInRoom(data *ReqMuteUnmute) error {
 	}
 	return nil
 }
+
+type DirectCallRequest struct {
+	CallerID string `json:"caller_id"`
+	CalleeID string `json:"callee_id"`
+}
+
+func DirectCallHandler(w http.ResponseWriter, r *http.Request) {
+	var req DirectCallRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+
+	if req.CallerID == "" || req.CalleeID == "" {
+		http.Error(w, "caller_id & callee_id required", http.StatusBadRequest)
+		return
+	}
+
+	if isUserBusy(req.CalleeID) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "BUSY",
+			"message": "User is already in a call",
+		})
+		return
+	}
+
+	if isUserBusy(req.CallerID) {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "BUSY",
+			"message": "You are already in a call",
+		})
+		return
+	}
+
+	roomName := fmt.Sprintf("dm-%s-%s", req.CallerID, req.CalleeID)
+
+	roomClient := InitRoomClient()
+
+	// Create room (idempotent-safe)
+	_, _ = roomClient.CreateRoom(context.Background(), &livekit.CreateRoomRequest{
+		Name:            roomName,
+		MaxParticipants: 2,
+		EmptyTimeout:    300, // auto-close if nobody joins
+	})
+
+	// Generate token for caller
+	token := getJoinToken(roomName, req.CallerID)
+
+	// TODO: notify callee (WebSocket / SSE)
+	// sendEvent(req.CalleeID, "incoming_call", roomName)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":   "OK",
+		"room_id":  roomName,
+		"token":    token,
+	})
+}
+
+func isUserBusy(identity string) bool {
+	roomClient := InitRoomClient()
+	rooms, _ := roomClient.ListRooms(context.Background(), &livekit.ListRoomsRequest{})
+
+	for _, room := range rooms.Rooms {
+		res, _ := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+			Room: room.Name,
+		})
+
+		for _, p := range res.Participants {
+			if p.Identity == identity {
+				return true
+			}
+		}
+	}
+	return false
+}
