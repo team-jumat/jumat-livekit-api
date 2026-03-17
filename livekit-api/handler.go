@@ -250,7 +250,7 @@ func RaiseHand(w http.ResponseWriter, r *http.Request) {
 }
 
 func getListRoom() *livekit.ListRoomsResponse {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	rooms, _ := roomClient.ListRooms(context.Background(), &livekit.ListRoomsRequest{})
 	return rooms
 }
@@ -276,7 +276,7 @@ type ReqRoom struct {
 }
 
 func createRoom(data *ReqRoom) *livekit.Room {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	timeOut, _ := strconv.ParseInt(data.TimeOut, 10, 64)
 	maxParticipants, _ := strconv.ParseInt(data.MaxParticipants, 10, 64)
 
@@ -305,8 +305,7 @@ func CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
-	roomClient := InitRoomClient()
-	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+	res, err := globalRoomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
 		Room: room_id,
 	})
 	if err != nil {
@@ -325,7 +324,7 @@ func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
 }
 
 func getRoomStatus(room_id string) bool {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
 		Room: room_id,
 	})
@@ -556,7 +555,7 @@ type ReqMuteUnmute struct {
 }
 
 func muteParticipantInRoom(data *ReqMuteUnmute) error {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	_, err := roomClient.MutePublishedTrack(context.Background(), &livekit.MuteRoomTrackRequest{
 		Room:     data.RoomID,
 		Identity: data.UserID,
@@ -606,7 +605,7 @@ func MuteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func unmuteParticipantInRoom(data *ReqMuteUnmute) error {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	_, err := roomClient.MutePublishedTrack(context.Background(), &livekit.MuteRoomTrackRequest{
 		Room:     data.RoomID,
 		Identity: data.UserID,
@@ -655,7 +654,7 @@ func UnmuteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func RemoveParticipantInRoom(data *ReqMuteUnmute) error {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	_, err := roomClient.RemoveParticipant(context.Background(), &livekit.RoomParticipantIdentity{
 		Room:     "1",
 		Identity: "1",
@@ -702,7 +701,7 @@ func DirectCallHandler(w http.ResponseWriter, r *http.Request) {
 
 	roomName := fmt.Sprintf("dm-%s-%s", req.CallerID, req.CalleeID)
 
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 
 	// Create room (idempotent-safe)
 	_, _ = roomClient.CreateRoom(context.Background(), &livekit.CreateRoomRequest{
@@ -725,7 +724,7 @@ func DirectCallHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func isUserBusy(identity string) bool {
-	roomClient := InitRoomClient()
+	roomClient := globalRoomClient
 	rooms, _ := roomClient.ListRooms(context.Background(), &livekit.ListRoomsRequest{})
 
 	for _, room := range rooms.Rooms {

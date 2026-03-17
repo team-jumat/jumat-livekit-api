@@ -11,8 +11,10 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+var globalRoomClient *lksdk.RoomServiceClient
+
 func main() {
-	InitRoomClient()
+	globalRoomClient = InitRoomClient()
 	http.HandleFunc("/token", GetTokenHandler)
 	http.HandleFunc("/rooms", GetRoomHandler)
 	http.HandleFunc("/room", CreateRoomHandler)
