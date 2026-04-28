@@ -250,8 +250,17 @@ func RaiseHand(w http.ResponseWriter, r *http.Request) {
 }
 
 func getListRoom() *livekit.ListRoomsResponse {
+	// Add timeout to prevent hanging requests
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	roomClient := globalRoomClient
-	rooms, _ := roomClient.ListRooms(context.Background(), &livekit.ListRoomsRequest{})
+	rooms, err := roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{})
+	if err != nil {
+		log.Printf("[ERROR] getListRoom failed: %v", err)
+		// Return empty response on error
+		return &livekit.ListRoomsResponse{}
+	}
 	return rooms
 }
 
@@ -305,16 +314,24 @@ func CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
-	res, err := globalRoomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+	// Add timeout to prevent hanging requests
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	res, err := globalRoomClient.ListParticipants(ctx, &livekit.ListParticipantsRequest{
 		Room: room_id,
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("[ERROR] ListParticipants failed for room %s: %v", room_id, err)
+		return []livekit.ParticipantData{}, 0
 	}
+
 	data, err := res.GetDataParticipants()
 	if err != nil {
-		log.Println(err)
+		log.Printf("[ERROR] GetDataParticipants failed for room %s: %v", room_id, err)
+		return []livekit.ParticipantData{}, 0
 	}
+
 	total := res.CountParticipants()
 	if data == nil {
 		// Set data to an empty slice
@@ -324,12 +341,17 @@ func getParticipantByRoomId(room_id string) ([]livekit.ParticipantData, int) {
 }
 
 func getRoomStatus(room_id string) bool {
+	// Add timeout to prevent hanging requests
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	roomClient := globalRoomClient
-	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+	res, err := roomClient.ListParticipants(ctx, &livekit.ListParticipantsRequest{
 		Room: room_id,
 	})
 	if err != nil {
-		log.Println(err)
+		log.Printf("[ERROR] getRoomStatus failed for room %s: %v", room_id, err)
+		return false
 	}
 	total := res.CountParticipants()
 	if total != 0 {
@@ -455,12 +477,38 @@ func GetParticipantHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
 		return
 	}
+
+	// Track consecutive errors for connection health
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 3
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
 			participant, total := getParticipantByRoomId(roomIdParam)
+
+			// Check for connection issues
+			if total == 0 && len(participant) == 0 {
+				consecutiveErrors++
+				log.Printf("[WARN] Room %s returned empty participants (error count: %d/%d)", roomIdParam, consecutiveErrors, maxConsecutiveErrors)
+
+				if consecutiveErrors >= maxConsecutiveErrors {
+					log.Printf("[ERROR] Too many consecutive errors for room %s, attempting client reconnection", roomIdParam)
+					// Try to reconnect the LiveKit client
+					if err := reconnectLiveKitClient(); err != nil {
+						log.Printf("[ERROR] Failed to reconnect LiveKit client: %v", err)
+					} else {
+						log.Printf("[INFO] Successfully reconnected LiveKit client")
+						consecutiveErrors = 0 // Reset counter after successful reconnection
+					}
+				}
+			} else {
+				// Reset error counter on successful data retrieval
+				consecutiveErrors = 0
+			}
+
 			data := map[string]interface{}{
 				"data":  participant,
 				"total": total,
@@ -724,13 +772,28 @@ func DirectCallHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func isUserBusy(identity string) bool {
+	// Add timeout to prevent hanging requests
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	roomClient := globalRoomClient
-	rooms, _ := roomClient.ListRooms(context.Background(), &livekit.ListRoomsRequest{})
+	rooms, err := roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{})
+	if err != nil {
+		log.Printf("[ERROR] isUserBusy failed to list rooms: %v", err)
+		return false
+	}
 
 	for _, room := range rooms.Rooms {
-		res, _ := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		res, err := roomClient.ListParticipants(ctx, &livekit.ListParticipantsRequest{
 			Room: room.Name,
 		})
+		cancel()
+
+		if err != nil {
+			log.Printf("[ERROR] isUserBusy failed to list participants for room %s: %v", room.Name, err)
+			continue
+		}
 
 		for _, p := range res.Participants {
 			if p.Identity == identity {
@@ -739,4 +802,21 @@ func isUserBusy(identity string) bool {
 		}
 	}
 	return false
+}
+
+// reconnectLiveKitClient attempts to reconnect the LiveKit client
+func reconnectLiveKitClient() error {
+	log.Println("[INFO] Attempting to reconnect LiveKit client...")
+
+	// Create a new client instance
+	newClient := InitRoomClient()
+	if newClient == nil {
+		return fmt.Errorf("failed to initialize new LiveKit client")
+	}
+
+	// Update the global client
+	globalRoomClient = newClient
+
+	log.Println("[INFO] LiveKit client reconnected successfully")
+	return nil
 }
