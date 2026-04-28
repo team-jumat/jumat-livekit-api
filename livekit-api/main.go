@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"jumat/protocol/livekit"
 	lksdk "jumat/server-sdk-go"
 
 	"github.com/joho/godotenv"
@@ -32,27 +35,41 @@ func main() {
 func InitRoomClient() *lksdk.RoomServiceClient {
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatalf("err loading: %v", err)
+		log.Printf("[WARN] Error loading .env file: %v", err)
 	}
 
 	apiKey := os.Getenv("LK_API_KEY")
 	if apiKey == "" {
-		log.Println("LK_API_KEY MISSING")
+		log.Println("[WARN] LK_API_KEY MISSING")
 	}
 
 	apiSecret := os.Getenv("LK_API_SECRET")
 	if apiSecret == "" {
-		log.Println("LK_API_SECRET MISSING")
+		log.Println("[WARN] LK_API_SECRET MISSING")
 	}
 	wsIP := os.Getenv("WEBSOCKET_IP")
 	if wsIP == "" {
-		log.Println("WEBSOCKET_IP MISSING")
+		log.Println("[WARN] WEBSOCKET_IP MISSING")
 	}
 	wsPort := os.Getenv("WEBSOCKET_PORT")
 	if wsPort == "" {
-		log.Println("WEBSOCKET_PORT MISSING")
+		log.Println("[WARN] WEBSOCKET_PORT MISSING")
 	}
 	host := "ws://" + wsIP + ":" + wsPort
+
+	log.Printf("[INFO] Connecting to LiveKit server at %s", host)
 	roomClient := lksdk.NewRoomServiceClient(host, apiKey, apiSecret)
+
+	// Test the connection with a simple ListRooms call
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{})
+	if err != nil {
+		log.Printf("[WARN] LiveKit connection test failed: %v", err)
+	} else {
+		log.Printf("[INFO] LiveKit client connected successfully")
+	}
+
 	return roomClient
 }
